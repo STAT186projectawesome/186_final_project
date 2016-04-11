@@ -1,5 +1,6 @@
 df1 = read.csv("Google Drive/raw_data_readable.csv.xlt")
 df1[df1=="Not applicable"] = NA
+df1[df1==""] = NA
 
 # which columns have NAs?
 for (i in 1:ncol(df1)) {
@@ -50,15 +51,16 @@ df3 <- years.to.educ(df1, as.integer(as.character(df1$Highest.year.of.school.com
 df4 = subset(df3, !is.na(Respondents.income))[ ,c(2:4,6,38)]
 df4$highest_degree = ordered(df4$highest_degree, c("no_high_school","high_school","bachelor","post_graduate"))
 df4$Age.of.respondent = as.numeric(df4$Age.of.respondent)
-library(MASS)
-ordered.multinomial = polr(highest_degree ~ . - Respondent.id.number,
-                           data=df4, method="logistic")
-with(ordered.multinomial, c(deviance, df.residual))
-predict(ordered.multinomial, newdata=data.frame(df4))
+df4$Respondent.id.number = as.numeric(df4$Respondent.id.number)
 
-df4 = subset(df3, !is.na(Respondents.income))[ ,c(3:7,38)]
+library(VGAM)
+ordered.multinomial = vglm(highest_degree ~ . - Respondent.id.number,
+                           data=df4, family=propodds)
+c(deviance(ordered.multinomial), df.residual(ordered.multinomial))
+predict(ordered.multinomial, newdata=df4, type="response")
+
 library(nnet)
 unordered.multinomial = multinom(highest_degree ~ . - Respondent.id.number,
                                  data=df4, maxit=10000)
 with(unordered.multinomial, c(deviance, edf))
-predict(unordered.multinomial, newdata=data.frame(df4), type="probs")
+predict(unordered.multinomial, newdata=df4, type="probs")
