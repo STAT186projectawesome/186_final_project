@@ -47,14 +47,18 @@ years.to.educ <- function(df.raw, years){
 df3 <- years.to.educ(df1, as.integer(as.character(df1$Highest.year.of.school.completed)))
 
 # build the multinomial regression for propensity scores
+df4 = subset(df3, !is.na(Respondents.income))[ ,c(2:4,6,38)]
+df4$highest_degree = ordered(df4$highest_degree, c("no_high_school","high_school","bachelor","post_graduate"))
+df4$Age.of.respondent = as.numeric(df4$Age.of.respondent)
 library(MASS)
-df3$highest_degree = ordered(df3$highest_degree, c("no_high_school","high_school","bachelor","post_graduate"))
-ordered.multinomial = polr(highest_degree ~ Marital.status + Age.of.respondent + Race.of.respondent + Respondents.income + Rs.religious.preference,
-                           data=df3)
+ordered.multinomial = polr(highest_degree ~ . - Respondent.id.number,
+                           data=df4, method="logistic")
 with(ordered.multinomial, c(deviance, df.residual))
-predict(ordered.multinomial, newdata=data.frame(df3[ ,c("Marital.status","Age.of.respondent","Race.of.respondent","Respondents.income","Rs.religious.preference")]))
+predict(ordered.multinomial, newdata=data.frame(df4))
+
+df4 = subset(df3, !is.na(Respondents.income))[ ,c(3:7,38)]
 library(nnet)
-unordered.multinomial = multinom(highest_degree ~ Marital.status + Age.of.respondent + Race.of.respondent + Respondents.income + Rs.religious.preference,
-                                 data=df3, maxit=10000)
+unordered.multinomial = multinom(highest_degree ~ . - Respondent.id.number,
+                                 data=df4, maxit=10000)
 with(unordered.multinomial, c(deviance, edf))
-predict(unordered.multinomial, newdata=data.frame(df3[ ,c("Marital.status","Age.of.respondent","Race.of.respondent","Respondents.income","Rs.religious.preference")]))
+predict(unordered.multinomial, newdata=data.frame(df4), type="probs")
