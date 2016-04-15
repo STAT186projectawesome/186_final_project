@@ -75,3 +75,9 @@ unordered.multinomial = multinom(highest_degree ~ .,
                                  data=df3[ ,c("highest_degree",covars)], maxit=10000)
 with(unordered.multinomial, c(deviance, edf))
 predict(unordered.multinomial, newdata=df3, type="probs")
+
+# try to convert worded responses to numeric attitude extremity
+for (i in c(8,10:35)) {
+  print(colnames(df3[i]))
+  print(levels(df3[ ,i]))
+}
