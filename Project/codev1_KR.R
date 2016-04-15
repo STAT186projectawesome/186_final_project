@@ -46,21 +46,32 @@ years.to.educ <- function(df.raw, years){
   return(df)
 }
 df3 <- years.to.educ(df1, as.integer(as.character(df1$Highest.year.of.school.completed)))
+# remove the 2 units whose age, race, everything is NA
+df3 = df3[!is.na(df3$Age.of.respondent), ]
+# clean up some data to get it ready for propensity score regression
 
+levels(df3$Hispanic.specified) = c(levels(df3$Hispanic.specified), "Not Hispanic")
+df3$Hispanic.specified[is.na(df3$Hispanic.specified)] = "Not Hispanic"
+df3$Age.of.respondent = as.numeric(df3$Age.of.respondent)
+df3$Respondent.id.number = as.numeric(df3$Respondent.id.number)
+
+covars = c("Marital.status"
+          ,"Age.of.respondent"
+          ,"Race.of.respondent"
+          ,"Rs.religious.preference"
+          ,"Hispanic.specified"
+           )
 # build the multinomial regression for propensity scores
-df4 = subset(df3, !is.na(Respondents.income))[ ,c(2:4,6,38)]
-df4$highest_degree = ordered(df4$highest_degree, c("no_high_school","high_school","bachelor","post_graduate"))
-df4$Age.of.respondent = as.numeric(df4$Age.of.respondent)
-df4$Respondent.id.number = as.numeric(df4$Respondent.id.number)
+df3$highest_degree = ordered(df3$highest_degree, c("no_high_school","high_school","bachelor","post_graduate"))
 
 library(VGAM)
-ordered.multinomial = vglm(highest_degree ~ . - Respondent.id.number,
-                           data=df4, family=propodds)
+ordered.multinomial = vglm(highest_degree ~ .,
+                           data=df3[ ,c("highest_degree",covars)], family=propodds)
 c(deviance(ordered.multinomial), df.residual(ordered.multinomial))
-predict(ordered.multinomial, newdata=df4, type="response")
+predict(ordered.multinomial, newdata=df3, type="response")
 
 library(nnet)
-unordered.multinomial = multinom(highest_degree ~ . - Respondent.id.number,
-                                 data=df4, maxit=10000)
+unordered.multinomial = multinom(highest_degree ~ .,
+                                 data=df3[ ,c("highest_degree",covars)], maxit=10000)
 with(unordered.multinomial, c(deviance, edf))
-predict(unordered.multinomial, newdata=df4, type="probs")
+predict(unordered.multinomial, newdata=df3, type="probs")
