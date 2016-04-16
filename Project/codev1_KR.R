@@ -11,6 +11,9 @@ for (i in 1:ncol(df1)) {
   }
 }
 
+# delete all units whose highest.year.of.school.completed is na
+df1 = df1[!is.na(df1$Highest.year.of.school.completed), ]
+
 # what are the levels of the questions
 colnames(df1)
 for (i in 8:ncol(df1)) {
@@ -74,10 +77,27 @@ library(nnet)
 unordered.multinomial = multinom(highest_degree ~ .,
                                  data=df3[ ,c("highest_degree",covars)], maxit=10000)
 with(unordered.multinomial, c(deviance, edf))
-predict(unordered.multinomial, newdata=df3, type="probs")
 
-# try to convert worded responses to numeric attitude extremity
-for (i in c(8,10:35)) {
-  print(colnames(df3[i]))
-  print(levels(df3[ ,i]))
+# unordered.multinomial has a lower deviance, so we'll use it 
+prop.scores = predict(unordered.multinomial, newdata=df3, type="probs")
+df4 = cbind(df3, prop.scores)
+
+# delete units whose score in any category is lower than the 
+scores.range = list()
+for (i in levels(df4$highest_degree)) {
+  scores.range[[i]] = apply(
+                          df4[df4$highest_degree==i, tail(colnames(df4),4)],
+                          2, range)
 }
+scores.range = as.data.frame(scores.range)
+
+df5 = df4
+# now, delete all units whose prop.score
+for (i in levels(df5$highest_degree)) {
+  max.min.score = max(scores.range[1,which(levels(df5$highest_degree)==i) + seq(0, by=4, length.out=4)])
+  min.max.score = min(scores.range[2,which(levels(df5$highest_degree)==i) + seq(0, by=4, length.out=4)])
+  df5 = df5[df5[ ,i] > max.min.score, ]
+  df5 = df5[df5[ ,i] < min.max.score, ]
+}
+
+# only deleted about 500 units!
