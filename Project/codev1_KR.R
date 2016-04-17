@@ -108,3 +108,4 @@ for (k in 4:10) {
   cluster.ids = as.data.frame(kmeans(df5[ ,tail(colnames(df5),4)], k)$cluster)
   print(table(cbind(df5$highest_degree, cluster.ids)))
 }
+# ADD THIS COMMENT #
