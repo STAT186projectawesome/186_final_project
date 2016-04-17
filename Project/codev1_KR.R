@@ -104,7 +104,7 @@ for (i in levels(df5$highest_degree)) {
 # only deleted about 500 units!
 
 # now, subclassify based on prop.scores
-for (k in 5:10) {
+for (k in 4:10) {
   cluster.ids = as.data.frame(kmeans(df5[ ,tail(colnames(df5),4)], k)$cluster)
   print(table(cbind(df5$highest_degree, cluster.ids)))
 }
