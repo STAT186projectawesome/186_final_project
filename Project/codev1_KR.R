@@ -11,9 +11,6 @@ for (i in 1:ncol(df1)) {
   }
 }
 
-# delete all units whose highest.year.of.school.completed is na
-df1 = df1[!is.na(df1$Highest.year.of.school.completed), ]
-
 # what are the levels of the questions
 colnames(df1)
 for (i in 8:ncol(df1)) {
@@ -25,14 +22,14 @@ environment.questions = colnames(df1)[c(23:34)]
 social.questions = colnames(df1)[c(10:13,14:16,19,21:23,35)]
 economic.questions = colnames(df1)[c(8,12,14:15,17:18,20,23:24,26,28:30)]
 
-answered.enough.questions = function(unit, question.set, threshold=3) {
-  return(as.numeric(sum(is.na(unit[question.set])) < 3))
-}
-df2 = df1
-for (i in c("environment","social","economic")) {
-  df2$newcol = apply(df1, 1, answered.enough.questions, question.set=get(paste(i,"questions",sep=".")))
-  colnames(df2)[length(colnames(df2))] = paste("answered.enough",i,sep=".")
-}
+# answered.enough.questions = function(unit, question.set, threshold=3) {
+#   return(as.numeric(sum(is.na(unit[question.set])) < 3))
+# }
+# df2 = df1
+# for (i in c("environment","social","economic")) {
+#   df2$newcol = apply(df1, 1, answered.enough.questions, question.set=get(paste(i,"questions",sep=".")))
+#   colnames(df2)[length(colnames(df2))] = paste("answered.enough",i,sep=".")
+# }
 
 # Recode Education
 df1$Highest.year.of.school.completed[df1$Highest.year.of.school.completed == "Don\'t know" | 
@@ -49,6 +46,10 @@ years.to.educ <- function(df.raw, years){
   return(df)
 }
 df3 <- years.to.educ(df1, as.integer(as.character(df1$Highest.year.of.school.completed)))
+
+# delete all units whose highest.year.of.school.completed is na
+df3 = df3[!is.na(df3$Highest.year.of.school.completed), ]
+
 # remove the 2 units whose age, race, everything is NA
 df3 = df3[!is.na(df3$Age.of.respondent), ]
 # clean up some data to get it ready for propensity score regression
@@ -101,3 +102,9 @@ for (i in levels(df5$highest_degree)) {
 }
 
 # only deleted about 500 units!
+
+# now, subclassify based on prop.scores
+for (k in 5:10) {
+  cluster.ids = as.data.frame(kmeans(df5[ ,tail(colnames(df5),4)], k)$cluster)
+  print(table(cbind(df5$highest_degree, cluster.ids)))
+}
