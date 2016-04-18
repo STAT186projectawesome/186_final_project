@@ -84,6 +84,8 @@ with(unordered.multinomial, c(deviance, edf))
 
 # test for significance of interaction terms
 step(unordered.multinomial, direction="forward", scope = ~.^2)
+# this takes too much computational power, so we'll have to stick to the linear predictors
+# the deviance indicates that much of the variance is explained, so it's not too much of a worry to not include interaction
 
 # unordered.multinomial has a lower deviance, so we'll use it 
 prop.scores = predict(unordered.multinomial, newdata=df3, type="probs")
