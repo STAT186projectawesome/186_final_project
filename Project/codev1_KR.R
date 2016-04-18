@@ -79,6 +79,9 @@ unordered.multinomial = multinom(highest_degree ~ .,
                                  data=df3[ ,c("highest_degree",covars)], maxit=10000)
 with(unordered.multinomial, c(deviance, edf))
 
+# the nominal model actually outperforms the ordinal model in terms of deviance!
+# probably because there are so many observations, so the order becomes irrelevant
+
 # unordered.multinomial has a lower deviance, so we'll use it 
 prop.scores = predict(unordered.multinomial, newdata=df3, type="probs")
 df4 = cbind(df3, prop.scores)
@@ -92,6 +95,7 @@ for (i in levels(df4$highest_degree)) {
 }
 scores.range = as.data.frame(scores.range)
 
+library("cluster")
 df5 = df4
 # now, delete all units whose prop.score
 for (i in levels(df5$highest_degree)) {
@@ -103,8 +107,24 @@ for (i in levels(df5$highest_degree)) {
 
 # only deleted about 500 units!
 
+# now, we have to recalculate the propensity scores, after the irrelevant units have been deleted
+df6 = df5[ ,-(ncol(df5) - c(3:0))]
+unordered.multinomial1 = multinom(highest_degree ~ .,
+                                  data=df6[ ,c("highest_degree",covars)], maxit=10000)
+prop.scores1 = predict(unordered.multinomial1, newdata=df6, type="probs")
+df7 = cbind(df6, prop.scores1)
+
+cluster.ids = list()
 # now, subclassify based on prop.scores
 for (k in 4:10) {
-  cluster.ids = as.data.frame(kmeans(df5[ ,tail(colnames(df5),4)], k)$cluster)
-  print(table(cbind(df5$highest_degree, cluster.ids)))
+  cluster.ids[[k]] = kmeans(df7[ ,tail(colnames(df5),4)], k)
+  print(table(cbind(df5$highest_degree, as.data.frame(cluster.ids[[k]]$cluster))))
 }
+
+cluster.tot.withinss = c()
+for (k in 4:10) {
+  cluster.tot.withinss = rbind(cluster.tot.withinss, c(k, cluster.ids[[k]]$tot.withinss))
+}
+plot(cluster.tot.withinss)
+
+clusGap(df5[ ,tail(colnames(df5),4)], kmeans, K.max=10)
