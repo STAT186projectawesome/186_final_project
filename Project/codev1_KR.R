@@ -82,6 +82,9 @@ with(unordered.multinomial, c(deviance, edf))
 # the nominal model actually outperforms the ordinal model in terms of deviance!
 # probably because there are so many observations, so the order becomes irrelevant
 
+# test for significance of interaction terms
+step(unordered.multinomial, direction="forward", scope = ~.^2)
+
 # unordered.multinomial has a lower deviance, so we'll use it 
 prop.scores = predict(unordered.multinomial, newdata=df3, type="probs")
 df4 = cbind(df3, prop.scores)
@@ -95,7 +98,6 @@ for (i in levels(df4$highest_degree)) {
 }
 scores.range = as.data.frame(scores.range)
 
-library("cluster")
 df5 = df4
 # now, delete all units whose prop.score
 for (i in levels(df5$highest_degree)) {
@@ -125,6 +127,3 @@ cluster.tot.withinss = c()
 for (k in 4:10) {
   cluster.tot.withinss = rbind(cluster.tot.withinss, c(k, cluster.ids[[k]]$tot.withinss))
 }
-plot(cluster.tot.withinss)
-
-clusGap(df5[ ,tail(colnames(df5),4)], kmeans, K.max=10)
