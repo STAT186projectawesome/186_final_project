@@ -204,7 +204,13 @@ grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"),
                          p3 + theme(legend.position = "none"), 
                          p4 + theme(legend.position = "none"), nrow = 2),
              g_legend(p4), nrow = 2, heights = c(10, 1))
-
+# Compute attitude extremity
+extreme_attitude <- function(x) {
+  max <- max(x)
+  mid <- quantile(x, p = 0.5)
+  out <- sum(x - max)^2/(max - mid)^2
+  return(out)
+}
 
 # now, subclassify based on prop.scores
 for (k in 4:10) {
