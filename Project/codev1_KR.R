@@ -1,4 +1,5 @@
-df1 = read.csv("Google Drive/raw_data_readable.csv.xlt")
+setwd("C:/Users/Matteo/186_final_project/Project")
+df1 = read.csv("./raw_data_t.csv")
 df1[df1=="Not applicable"] = NA
 df1[df1==""] = NA
 
@@ -59,9 +60,7 @@ df3$Hispanic.specified[is.na(df3$Hispanic.specified)] = "Not Hispanic"
 df3$Age.of.respondent = as.numeric(df3$Age.of.respondent)
 df3$Respondent.id.number = as.numeric(df3$Respondent.id.number)
 
-covars = c("Marital.status"
-          ,"Age.of.respondent"
-          ,"Race.of.respondent"
+covars = c("Race.of.respondent"
           ,"Rs.religious.preference"
           ,"Hispanic.specified"
            )
@@ -117,8 +116,96 @@ unordered.multinomial1 = multinom(highest_degree ~ .,
                                   data=df6[ ,c("highest_degree",covars)], maxit=10000)
 prop.scores1 = predict(unordered.multinomial1, newdata=df6, type="probs")
 df7 = cbind(df6, prop.scores1)
+save(df7, file = "./computed_ps.RData")
+load("./computed_ps.RData")
+# matrix of propensity scores
+ps <- as.matrix(cbind(df7[, tail(colnames(df7), 4)]))
+lps <- log(ps/(1 - ps))
+df7[, tail(colnames(df7), 4)] <- lps
+get.pval <- function(df, clusterID, ps){
+  idx.clusterID <- df$clusterID == clusterID
+  # There are only ncol(ps) - 1 linearly independent columns
+  y <- as.matrix(ps[idx.clusterID, 1:(ncol(ps) - 1)])
+  x <- as.factor(df[idx.clusterID, ]$highest_degree)
+  fit <- manova(y ~ x)
+  p.value <- summary(fit)$stats[1, 6]
+  return(p.value)
+}
+# Run kmeans and update subclasses identification
+run_kmeans <- function(df, clusterID, ncl){
+  idx <- df$clusterID == clusterID
+  idx_next <- df$clusterID > clusterID
+  if (sum(idx_next) > 0) 
+    df[idx_next, ]$clusterID <- df[idx_next, ]$clusterID + ncl - 1
+  a <- (clusterID - 1)
+  df[idx, ]$clusterID <- a+kmeans(df[idx, tail(colnames(df), 4)], ncl)$cluster
+  return(df)
+}
+df8 <- df7
+df8$clusterID <- kmeans(ps, 2)$cluster
+n.cluster <- max(df8$clusterID)
+pv <- sapply(1:n.cluster, function(x) get.pval(x, df = df8, ps = ps))
+are.units.ok <- sapply(1:n.cluster , function(x) 
+  table(df8[df8$clusterID == x, ]$highest_degree))
+are.units.ok <- sapply(1:n.cluster, function(x) any(are.units.ok[, x] > 10))
+sig.idx <- which(pv < 0.01 & are.units.ok)
+count <- 0
+df9 <- df8
+ncl <- 2 #number of clusters to fit at each iteration
+min.units <- 20 # min # of units in each category
+while(length(sig.idx) > 0){
+  offset <- 0
+for(i in sig.idx) {
+  df_temp <- df9
+  df9 <- run_kmeans(df9, i + offset, ncl)
+  u <- sapply((i + offset):(i + offset + ncl - 1), function(x) 
+    table(df9[df9$clusterID == x, ]$highest_degree))
+  offset <- (ncl-1)
+  if(any(u < min.units)) {
+    df9 <- df_temp
+    offset <- 0
+  }
+}
+# Do we have enough units for each highest degree?
+are.units.ok <- sapply(1:max(df9$clusterID), function(x) 
+  table(df9[df9$clusterID == x, ]$highest_degree))
+are.units.ok <- sapply(1:max(df9$clusterID), 
+                       function(x) all(are.units.ok[, x] > min.units))
+pv <- sapply(1:max(df9$clusterID), function(x) get.pval(x, df = df9, ps = ps))
+sig.idx <- which(pv < 0.01 & are.units.ok)
+count <- count + 1
+print(paste("Finished with iteration", count))
+}
 
-cluster.ids = list()
+# get hisograms for propensity scores based on class
+library(ggplot2)
+library(gridExtra)
+# Example with 5 clusters
+df8$clusterID <- kmeans(ps, 5)$cluster
+df9 <- df8
+df9$clusterID <- as.factor(df9$clusterID)
+p1 <- ggplot(aes(x = no_high_school, fill = clusterID), data = df9) +
+  geom_density(alpha = 0.5)
+p2 <- ggplot(aes(x = high_school, fill = clusterID), data = df9) +
+  geom_density(alpha = 0.5)
+p3 <- ggplot(aes(x = bachelor, fill = clusterID), data = df9) +
+  geom_density(alpha = 0.5)
+p4 <- ggplot(aes(x = post_graduate, fill = clusterID), data = df9) +
+  geom_density(alpha = 0.5) + 
+  theme(legend.direction = "horizontal")
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"), 
+                         p2 + theme(legend.position = "none"),
+                         p3 + theme(legend.position = "none"), 
+                         p4 + theme(legend.position = "none"), nrow = 2),
+             g_legend(p4), nrow = 2, heights = c(10, 1))
+
+
 # now, subclassify based on prop.scores
 for (k in 4:10) {
   cluster.ids[[k]] = kmeans(df7[ ,tail(colnames(df5),4)], k)
