@@ -141,15 +141,29 @@ df5$prop.scores <- prop.scores1
 ps <- as.matrix(cbind(df5[, tail(colnames(df5), 4)]))
 ps <- log(ps/(1 - ps))
 df5[, tail(colnames(df5), 4)] <- ps
-# get.pval <- function(df, clusterID, ps){
-#   idx.clusterID <- df$clusterID == clusterID
-#   # There are only ncol(ps) - 1 linearly independent columns
-#   y <- as.matrix(ps[idx.clusterID, 1:(ncol(ps) - 1)])
-#   x <- as.factor(df[idx.clusterID, ]$highest_degree)
-#   fit <- manova(y ~ x)
-#   p.value <- summary(fit)$stats[1, 6]
-#   return(p.value)
-# }
+get.pval <- function(df, clusterID, ps){
+  idx.clusterID <- df$clusterID == clusterID
+  # There are only ncol(ps) - 1 linearly independent columns
+  y <- as.matrix(ps[idx.clusterID, 1:(ncol(ps) - 1)])
+  x <- as.factor(df[idx.clusterID, ]$highest_degree)
+  fit <- manova(y ~ x)
+  p.value <- summary(fit)$stats[1, 6]
+  return(p.value)
+}
+# Attempt to code what we discussed today
+df6 <- df5
+df6$clusterID <- kmeans(ps, 2)$cluster
+n.cluster <- max(df6$clusterID)
+pv <- sapply(1:n.cluster, function(x) get.pval(x, df = df6, ps = ps))
+sig.idx <- which(pv < 0.01)
+ncl <- 2
+while(length(sig.idx) > 0){
+  ncl <- ncl + 1
+  df6$clusterID <- kmeans(ps, ncl)$cluster
+  pv <- sapply(1:ncl, function(x) get.pval(x, df = df6, ps = ps))
+  sig.idx <- which(pv < 0.01)
+  print(paste("Finished with fitting", ncl, "clusters"))
+}
 # # Run kmeans and update subclasses identification
 # run_kmeans <- function(df, clusterID, ncl){
 #   idx <- df$clusterID == clusterID
@@ -230,8 +244,6 @@ grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"),
                          p3 + theme(legend.position = "none"), 
                          p.last + theme(legend.position = "none"), nrow = 2),
              g_legend(p.last), nrow = 2, heights = c(10, 1))
-levels(df9$Race.of.respondent)
-levels(df9$Hispanic.specified)
 # Compute attitude extremity
 extreme_attitude <- function(y) {
   x <- as.integer(y)
@@ -258,10 +270,3 @@ cluster.tot.withinss = c()
 for (k in 4:10) {
   cluster.tot.withinss = rbind(cluster.tot.withinss, c(k, cluster.ids[[k]]$tot.withinss))
 }
-#########################
-# Sub-classify directly #
-#########################
-table(df2$Race.of.respondent)
-table(df2$Rs.religious.preference)
-table(df2$Hispanic.specified)
-df2$highest_degree[df2$Hispanic.specified == "Cuban"]
