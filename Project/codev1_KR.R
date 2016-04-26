@@ -1,5 +1,5 @@
-setwd("C:/Users/Matteo/186_final_project/Project")
-df1 = read.csv("./raw_data_t.csv")
+# setwd("C:/Users/Matteo/186_final_project/Project")
+df1 = read.csv("Google Drive/raw_data_readable.csv.xlt")
 df1[df1=="Not applicable"] = NA
 df1[df1==""] = NA
 
@@ -90,7 +90,7 @@ step(unordered.multinomial, direction="forward", scope = ~.^2)
 prop.scores = predict(unordered.multinomial, newdata=df3, type="probs")
 df4 = cbind(df3, prop.scores)
 
-# delete units whose score in any category is lower than the 
+# delete units whose score in any category is outside the range of the prop.scores in other treatment levels
 scores.range = list()
 for (i in levels(df4$highest_degree)) {
   scores.range[[i]] = apply(
@@ -100,15 +100,15 @@ for (i in levels(df4$highest_degree)) {
 scores.range = as.data.frame(scores.range)
 
 df5 = df4
-# now, delete all units whose prop.score
 for (i in levels(df5$highest_degree)) {
   max.min.score = max(scores.range[1,which(levels(df5$highest_degree)==i) + seq(0, by=4, length.out=4)])
   min.max.score = min(scores.range[2,which(levels(df5$highest_degree)==i) + seq(0, by=4, length.out=4)])
   df5 = df5[df5[ ,i] > max.min.score, ]
   df5 = df5[df5[ ,i] < min.max.score, ]
 }
+c(nrow(df5), nrow(df4))
 
-# only deleted about 500 units!
+# only deleted about 1k units, still have over 50k
 
 # now, we have to recalculate the propensity scores, after the irrelevant units have been deleted
 df6 = df5[ ,-(ncol(df5) - c(3:0))]
@@ -116,6 +116,29 @@ unordered.multinomial1 = multinom(highest_degree ~ .,
                                   data=df6[ ,c("highest_degree",covars)], maxit=10000)
 prop.scores1 = predict(unordered.multinomial1, newdata=df6, type="probs")
 df7 = cbind(df6, prop.scores1)
+
+# KIRAN CODE TO FIND OPTIMAL NUMBER OF CLUSTERS
+# set the minimum number of clusters we want
+cluster.manova.pval = function(df, k) {
+  # cluster the units based on the propensity score
+  set.seed(2016)
+  x = kmeans(df[ ,tail(colnames(df),4)], k)$cluster
+  fit = rep(NA, k)
+  for (i in 1:k) {
+    fit[i] = summary(
+                     manova(as.matrix(df[x==i,tail(colnames(df7),3)]) ~ as.matrix(df[x==i,"highest_degree"]))
+                     )[[4]][1,"approx F"]
+  }
+  return(fit)
+}
+
+for (k in 1:10) {
+  print(k)
+  print(c(mean(cluster.manova.pval(df7, k)), var(cluster.manova.pval(df7, k))))
+}
+
+# clear option is to choose 7 clusters, since we have a low mean and variance of F-values
+
 save(df7, file = "./computed_ps.RData")
 load("./computed_ps.RData")
 # matrix of propensity scores
@@ -212,13 +235,3 @@ extreme_attitude <- function(x) {
   return(out)
 }
 
-# now, subclassify based on prop.scores
-for (k in 4:10) {
-  cluster.ids[[k]] = kmeans(df7[ ,tail(colnames(df5),4)], k)
-  print(table(cbind(df5$highest_degree, as.data.frame(cluster.ids[[k]]$cluster))))
-}
-
-cluster.tot.withinss = c()
-for (k in 4:10) {
-  cluster.tot.withinss = rbind(cluster.tot.withinss, c(k, cluster.ids[[k]]$tot.withinss))
-}
