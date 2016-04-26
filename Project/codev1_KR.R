@@ -139,82 +139,90 @@ for (k in 1:10) {
 
 # clear option is to choose 7 clusters, since we have a low mean and variance of F-values
 
-save(df7, file = "./computed_ps.RData")
-load("./computed_ps.RData")
-# matrix of propensity scores
-ps <- as.matrix(cbind(df7[, tail(colnames(df7), 4)]))
-lps <- log(ps/(1 - ps))
-df7[, tail(colnames(df7), 4)] <- lps
-get.pval <- function(df, clusterID, ps){
-  idx.clusterID <- df$clusterID == clusterID
-  # There are only ncol(ps) - 1 linearly independent columns
-  y <- as.matrix(ps[idx.clusterID, 1:(ncol(ps) - 1)])
-  x <- as.factor(df[idx.clusterID, ]$highest_degree)
-  fit <- manova(y ~ x)
-  p.value <- summary(fit)$stats[1, 6]
-  return(p.value)
-}
-# Run kmeans and update subclasses identification
-run_kmeans <- function(df, clusterID, ncl){
-  idx <- df$clusterID == clusterID
-  idx_next <- df$clusterID > clusterID
-  if (sum(idx_next) > 0) 
-    df[idx_next, ]$clusterID <- df[idx_next, ]$clusterID + ncl - 1
-  a <- (clusterID - 1)
-  df[idx, ]$clusterID <- a+kmeans(df[idx, tail(colnames(df), 4)], ncl)$cluster
-  return(df)
-}
-df8 <- df7
-df8$clusterID <- kmeans(ps, 2)$cluster
-n.cluster <- max(df8$clusterID)
-pv <- sapply(1:n.cluster, function(x) get.pval(x, df = df8, ps = ps))
-are.units.ok <- sapply(1:n.cluster , function(x) 
-  table(df8[df8$clusterID == x, ]$highest_degree))
-are.units.ok <- sapply(1:n.cluster, function(x) any(are.units.ok[, x] > 10))
-sig.idx <- which(pv < 0.01 & are.units.ok)
-count <- 0
-df9 <- df8
-ncl <- 2 #number of clusters to fit at each iteration
-min.units <- 20 # min # of units in each category
-while(length(sig.idx) > 0){
-  offset <- 0
-for(i in sig.idx) {
-  df_temp <- df9
-  df9 <- run_kmeans(df9, i + offset, ncl)
-  u <- sapply((i + offset):(i + offset + ncl - 1), function(x) 
-    table(df9[df9$clusterID == x, ]$highest_degree))
-  offset <- (ncl-1)
-  if(any(u < min.units)) {
-    df9 <- df_temp
-    offset <- 0
-  }
-}
-# Do we have enough units for each highest degree?
-are.units.ok <- sapply(1:max(df9$clusterID), function(x) 
-  table(df9[df9$clusterID == x, ]$highest_degree))
-are.units.ok <- sapply(1:max(df9$clusterID), 
-                       function(x) all(are.units.ok[, x] > min.units))
-pv <- sapply(1:max(df9$clusterID), function(x) get.pval(x, df = df9, ps = ps))
-sig.idx <- which(pv < 0.01 & are.units.ok)
-count <- count + 1
-print(paste("Finished with iteration", count))
-}
+# save(df7, file = "./computed_ps.RData")
+# load("./computed_ps.RData")
+# # matrix of propensity scores
+# ps <- as.matrix(cbind(df7[, tail(colnames(df7), 4)]))
+# lps <- log(ps/(1 - ps))
+# df7[, tail(colnames(df7), 4)] <- lps
+# get.pval <- function(df, clusterID, ps){
+#   idx.clusterID <- df$clusterID == clusterID
+#   # There are only ncol(ps) - 1 linearly independent columns
+#   y <- as.matrix(ps[idx.clusterID, 1:(ncol(ps) - 1)])
+#   x <- as.factor(df[idx.clusterID, ]$highest_degree)
+#   fit <- manova(y ~ x)
+#   p.value <- summary(fit)$stats[1, 6]
+#   return(p.value)
+# }
+# # Run kmeans and update subclasses identification
+# run_kmeans <- function(df, clusterID, ncl){
+#   idx <- df$clusterID == clusterID
+#   idx_next <- df$clusterID > clusterID
+#   if (sum(idx_next) > 0) 
+#     df[idx_next, ]$clusterID <- df[idx_next, ]$clusterID + ncl - 1
+#   a <- (clusterID - 1)
+#   df[idx, ]$clusterID <- a+kmeans(df[idx, tail(colnames(df), 4)], ncl)$cluster
+#   return(df)
+# }
+# df8 <- df7
+# df8$clusterID <- kmeans(ps, 2)$cluster
+# n.cluster <- max(df8$clusterID)
+# pv <- sapply(1:n.cluster, function(x) get.pval(x, df = df8, ps = ps))
+# are.units.ok <- sapply(1:n.cluster , function(x) 
+#   table(df8[df8$clusterID == x, ]$highest_degree))
+# are.units.ok <- sapply(1:n.cluster, function(x) any(are.units.ok[, x] > 10))
+# sig.idx <- which(pv < 0.01 & are.units.ok)
+# count <- 0
+# df9 <- df8
+# ncl <- 2 #number of clusters to fit at each iteration
+# min.units <- 20 # min # of units in each category
+# while(length(sig.idx) > 0){
+#   offset <- 0
+# for(i in sig.idx) {
+#   df_temp <- df9
+#   df9 <- run_kmeans(df9, i + offset, ncl)
+#   u <- sapply((i + offset):(i + offset + ncl - 1), function(x) 
+#     table(df9[df9$clusterID == x, ]$highest_degree))
+#   offset <- (ncl-1)
+#   if(any(u < min.units)) {
+#     df9 <- df_temp
+#     offset <- 0
+#   }
+# }
+# # Do we have enough units for each highest degree?
+# are.units.ok <- sapply(1:max(df9$clusterID), function(x) 
+#   table(df9[df9$clusterID == x, ]$highest_degree))
+# are.units.ok <- sapply(1:max(df9$clusterID), 
+#                        function(x) all(are.units.ok[, x] > min.units))
+# pv <- sapply(1:max(df9$clusterID), function(x) get.pval(x, df = df9, ps = ps))
+# sig.idx <- which(pv < 0.01 & are.units.ok)
+# count <- count + 1
+# print(paste("Finished with iteration", count))
+# }
 
-# get hisograms for propensity scores based on class
+df8 = df7
+# get histograms for propensity scores based on class
 library(ggplot2)
 library(gridExtra)
-# Example with 5 clusters
-df8$clusterID <- kmeans(ps, 5)$cluster
-df9 <- df8
-df9$clusterID <- as.factor(df9$clusterID)
-p1 <- ggplot(aes(x = no_high_school, fill = clusterID), data = df9) +
-  geom_density(alpha = 0.5)
-p2 <- ggplot(aes(x = high_school, fill = clusterID), data = df9) +
-  geom_density(alpha = 0.5)
-p3 <- ggplot(aes(x = bachelor, fill = clusterID), data = df9) +
-  geom_density(alpha = 0.5)
-p4 <- ggplot(aes(x = post_graduate, fill = clusterID), data = df9) +
-  geom_density(alpha = 0.5) + 
+# Example with ncl=4 clusters
+ncl <- 7 # clusters
+bw <- 0.1 # binwidth
+alpha <- 0.5 
+df8$clusterID <- kmeans(df7[ ,tail(colnames(df7),4)], ncl)$cluster
+df9 <- df8[, c("no_high_school", "high_school", "bachelor", 
+               "post_graduate", "clusterID")]
+library(reshape2)
+df9 <- melt(df9, id = c("clusterID"))
+for(i in 1:(ncl - 1)){
+  assign(paste0("p", i), ggplot(aes(x = value, fill = variable), 
+                                data = df9[df9$clusterID==i, ]) + 
+           geom_histogram(aes(y = ..density..), alpha = alpha, 
+                          binwidth = bw)) 
+}
+p.last <- ggplot(aes(x = value, fill = variable), 
+                 data = df9[df9$clusterID==ncl, ]) + 
+  geom_histogram(aes(y = ..density..), alpha = alpha,
+                 binwidth = bw) +  
   theme(legend.direction = "horizontal")
 g_legend<-function(a.gplot){
   tmp <- ggplot_gtable(ggplot_build(a.gplot))
@@ -225,8 +233,8 @@ g_legend<-function(a.gplot){
 grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"), 
                          p2 + theme(legend.position = "none"),
                          p3 + theme(legend.position = "none"), 
-                         p4 + theme(legend.position = "none"), nrow = 2),
-             g_legend(p4), nrow = 2, heights = c(10, 1))
+                         p.last + theme(legend.position = "none"), nrow = 2),
+             g_legend(p.last), nrow = 2, heights = c(10, 1))
 # Compute attitude extremity
 extreme_attitude <- function(x) {
   max <- max(x)
