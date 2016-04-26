@@ -1,8 +1,22 @@
 setwd("C:/Users/Matteo/186_final_project/Project")
 df1 = read.csv("./raw_data_t.csv")
-df1[df1=="Not applicable"] = NA
-df1[df1==""] = NA
-
+# Some cleaning #
+df1[df1=="Not applicable" | df1 == ""] <- NA
+latin.american <- c("Mexican, mexican american, chicano/a", "Latin", "Latino/a")
+other.hispanic <- c("No answer", "Don/'t know", "Other, not specified")
+df1$Hispanic.specified[df1$Hispanic.specified == "Not Hispanic"] <- "Not hispanic"
+df1$Hispanic.specified[df1$Hispanic.specified %in% latin.american] <- "Latin american"
+df1$Hispanic.specified[df1$Hispanic.specified == "Latin"] <- "Latin american"
+df1$Hispanic.specified[df1$Hispanic.specified == "Latin"] <- "Latin american"
+df1$Hispanic.specified <- factor(df1$Hispanic.specified)
+unique(df1$Hispanic.specified)
+df1$Rs.religious.preference[df1$Rs.religious.preference == "None"] <- "Other"
+df1$Rs.religious.preference[df1$Rs.religious.preference == "Other eastern"] <- "Other"
+df1$Rs.religious.preference[df1$Rs.religious.preference == "Don\'t know"] <- "Other"
+df1$Rs.religious.preference[df1$Rs.religious.preference == "None"] <- "Other"
+df1$Rs.religious.preference[df1$Rs.religious.preference == "Orthodox-christian"] <- "Christian"
+df1$Rs.religious.preference <- factor(df1$Rs.religious.preference)
+unique(df1$Rs.religious.preference)
 # which columns have NAs?
 for (i in 1:ncol(df1)) {
   prop.na = sum(is.na(df1[ ,i])) / nrow(df1)
@@ -22,7 +36,6 @@ for (i in 8:ncol(df1)) {
 environment.questions = colnames(df1)[c(23:34)]
 social.questions = colnames(df1)[c(10:13,14:16,19,21:23,35)]
 economic.questions = colnames(df1)[c(8,12,14:15,17:18,20,23:24,26,28:30)]
-
 # answered.enough.questions = function(unit, question.set, threshold=3) {
 #   return(as.numeric(sum(is.na(unit[question.set])) < 3))
 # }
@@ -118,10 +131,10 @@ prop.scores1 = predict(unordered.multinomial1, newdata=df6, type="probs")
 df7 = cbind(df6, prop.scores1)
 save(df7, file = "./computed_ps.RData")
 load("./computed_ps.RData")
-# matrix of propensity scores
+# matrix of linearized propensity scores
 ps <- as.matrix(cbind(df7[, tail(colnames(df7), 4)]))
-lps <- log(ps/(1 - ps))
-df7[, tail(colnames(df7), 4)] <- lps
+ps <- log(ps/(1 - ps)) + runif(nrow(ps), min = -0.0001, max = 0.0001)
+df7[, tail(colnames(df7), 4)] <- ps
 get.pval <- function(df, clusterID, ps){
   idx.clusterID <- df$clusterID == clusterID
   # There are only ncol(ps) - 1 linearly independent columns
@@ -152,8 +165,8 @@ sig.idx <- which(pv < 0.01 & are.units.ok)
 count <- 0
 df9 <- df8
 ncl <- 2 #number of clusters to fit at each iteration
-min.units <- 20 # min # of units in each category
-while(length(sig.idx) > 0){
+min.units <- 10 # min # of units in each category
+while(length(sig.idx) > 0 & count < 20){
   offset <- 0
 for(i in sig.idx) {
   df_temp <- df9
@@ -181,8 +194,8 @@ print(paste("Finished with iteration", count))
 library(ggplot2)
 library(gridExtra)
 # Example with 5 clusters
-df8$clusterID <- kmeans(ps, 5)$cluster
-df9 <- df8
+# df8$clusterID <- kmeans(ps, 10)$cluster
+# df9 <- df8
 df9$clusterID <- as.factor(df9$clusterID)
 p1 <- ggplot(aes(x = no_high_school, fill = clusterID), data = df9) +
   geom_density(alpha = 0.5)
@@ -204,8 +217,11 @@ grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"),
                          p3 + theme(legend.position = "none"), 
                          p4 + theme(legend.position = "none"), nrow = 2),
              g_legend(p4), nrow = 2, heights = c(10, 1))
+levels(df9$Race.of.respondent)
+levels(df9$Hispanic.specified)
 # Compute attitude extremity
-extreme_attitude <- function(x) {
+extreme_attitude <- function(y) {
+  x <- y[!is.na(y)]
   max <- max(x)
   mid <- quantile(x, p = 0.5)
   out <- sum(x - max)^2/(max - mid)^2
