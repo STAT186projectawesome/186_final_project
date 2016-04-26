@@ -122,7 +122,8 @@ df7 = cbind(df6, prop.scores1)
 cluster.manova.pval = function(df, k) {
   # cluster the units based on the propensity score
   set.seed(2016)
-  x = kmeans(df[ ,tail(colnames(df),4)], k)$cluster
+  ps.linearized = log(df[ ,tail(colnames(df),4)] / (1 - df[ ,tail(colnames(df),4)]))
+  x = kmeans(ps.linearized, k)$cluster
   fit = rep(NA, k)
   for (i in 1:k) {
     fit[i] = summary(
