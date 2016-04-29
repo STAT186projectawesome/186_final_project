@@ -206,7 +206,7 @@ df8 = df7
 # get histograms for propensity scores based on class
 library(ggplot2)
 library(gridExtra)
-# Example with ncl=4 clusters
+# Example with ncl=7 clusters
 ncl <- 7 # clusters
 bw <- 0.1 # binwidth
 alpha <- 0.5 

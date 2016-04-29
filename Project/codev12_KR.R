@@ -357,17 +357,30 @@ df9$envi.ext.att <- rowSums(envi.ext, na.rm = TRUE, dims = 1)
 df9$pool.ext.att <- rowSums(cbind(econ.ext, soci.ext, envi.ext), na.rm = TRUE)
 treat <- levels(df9$highest_degree)
 avg.treat.effect <- matrix(NA, nrow = max(df9$clusterID), ncol = 4)
-var.treat.effect <- avg.treat.effect 
-colnames(avg.treat.effect) <-  colnames(var.treat.effect) <- treat
-rownames(avg.treat.effect) <-  rownames(var.treat.effect) <- paste("cluster", 1:max(df9$clusterID))
+var.treat.effect <- nkj <- avg.treat.effect
+colnames(avg.treat.effect) <-  colnames(var.treat.effect) <- 
+  colnames(nkj) <- treat
+rownames(avg.treat.effect) <-  rownames(var.treat.effect) <- 
+  rownames(nkj) <- paste("cluster", 1:max(df9$clusterID))
 for(i in 1:max(df9$clusterID)) {
   for(j in 1:length(treat)){
     idx <- df9$clusterID == i & df9$highest_degree == treat[j]
+    nkj[i, j] <- sum(idx)
     avg.treat.effect[i, j] <- mean(df9[idx, "pool.ext.att"])
-    var.treat.effect[i, j] <- sum(df9[idx, "pool.ext.att"] - 
-                                    avg.treat.effect[i, j])^2/(sum(idx) - 1)
+    var.treat.effect[i, j] <- sum((df9[idx, "pool.ext.att"] - 
+                                    avg.treat.effect[i, j])^2)/(nkj[i, j] - 1)
   }
 }
+nj <- apply(nkj, 2, sum)
+weights <- sweep(nkj, 2, nj, "/")
+yj <- apply(avg.treat.effect*weights, 2, sum)
+vyj <- apply(weights^2*var.treat.effect/nkj, 2, sum)
+ci.lo <- yj + qnorm(0.025)*sqrt(vyj)
+ci.hi <- yj + qnorm(0.975)*sqrt(vyj)
+ci <- rbind(ci.lo, ci.hi)
+rownames(ci) <- c("L", "U")
+ci
+# CHECK IF OUR DATA IS SIMILAR ENOUGH TO THAT IN THE PAPER #
 mean(df9$econ.ext.avg)
 mean(df9$soci.ext.avg)
 mean(df9$envi.ext.avg)
