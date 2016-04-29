@@ -227,7 +227,6 @@ df9k$clusterID <- kmeans(ps, 7)$cluster
 # VISUALIZE THE BALANCE #
 #########################
 # get hisograms for propensity scores based on class
-df9$clusterID <- kmeans(ps, 7)$cluster
 library(ggplot2)
 library(gridExtra)
 library(grid)
