@@ -1,4 +1,5 @@
 setwd("C:/Users/Matteo/186_final_project/Project")
+source("./helpers.R")
 df1 = read.csv("./raw_data_t.csv")
 # Some cleaning #
 df1[df1=="Not applicable" | df1 == ""] <- NA
@@ -8,15 +9,6 @@ df1$Highest.year.of.school.completed[df1$Highest.year.of.school.completed == "Do
                                        df1$Highest.year.of.school.completed == "No answer"] <- NA
 # Recode after setting some levels to NA
 df1$Highest.year.of.school.completed <- factor(df1$Highest.year.of.school.completed)
-years.to.educ <- function(df.raw, years){
-  df <- df.raw
-  df$highest_degree <- 1*(years < 12) + 2*(years >= 12 & years <= 15) +
-    3*(years >= 16 & years <= 17) + 4*(years > 17)
-  df$highest_degree <- as.factor(df$highest_degree)
-  levels(df$highest_degree) <- c("no_high_school", "high_school", "bachelor", 
-                                 "post_graduate")
-  return(df)
-}
 df1 <- years.to.educ(df1, as.integer(as.character(df1$Highest.year.of.school.completed)))
 latin.american <- c("Latin", "Latino/a", "Latin american")
 miss.hispanic <- c("Don\'t know", "No answer", "Not applicable", "Other, not specified")
@@ -66,11 +58,6 @@ environmental.questions <- c("Worry.too.much.about.envir..too.little.econ",
 # DROP UNITS ACCORDING TO PAPER #
 #################################
 # delete units with less than 3 questions answered
-enough.answers <- function(df, category, threshold = 3){
-  t <- sapply(1:nrow(df), function (x) sum(!is.na(df1[x, category])))
-  out <- which(t < threshold)
-  return(out)
-}
 outlist.econ <- enough.answers(df1, economic.questions)
 outlist.soci <- enough.answers(df1, social.questions)
 outlist.envi <- enough.answers(df1, environmental.questions)
@@ -126,77 +113,30 @@ for (i in levels(df5$highest_degree)) {
   df5 = df5[df5[ ,i] > max.min.score, ]
   df5 = df5[df5[ ,i] < min.max.score, ]
 }
-
 # only deleted 308 units!
-
 # now, we have to recalculate the propensity scores, after the irrelevant units have been deleted
 unordered.multinomial1 = multinom(highest_degree ~ .,
                                   data=df5[ ,c("highest_degree", covars)], maxit=10000)
 prop.scores1 = predict(unordered.multinomial1, newdata=df5, type="probs")
 df5[,tail(colnames(df5), 4)] <- prop.scores1
-# save(df5, file = "./computed_ps.RData")
-# load("./computed_ps.RData")
 # matrix of linearized propensity scores
 ps <- as.matrix(cbind(df5[, tail(colnames(df5), 4)]))
 ps <- log(ps/(1 - ps))
 df5[, tail(colnames(df5), 4)] <- ps
-
-get.pval <- function(df, clusterID, ps){
-  idx.clusterID <- df$clusterID == clusterID
-  # There are only ncol(ps) - 1 linearly independent columns
-  y <- as.matrix(ps[idx.clusterID, 1:(ncol(ps) - 1)])
-  x <- as.matrix(df[idx.clusterID, ]$highest_degree)
-  fit <- manova(y ~ x)
-  temp <- try(p.value <- summary(fit)$stats[1, 6], silent = TRUE)
-  if(class(temp) == "try-error") p.value <- 1
-  return(p.value)
-}
-# Attempt to code what we discussed today
-# set.seed(2016)
-# df6 <- df5
-# df6$clusterID <- kmeans(ps, 2)$cluster
-# n.cluster <- max(df6$clusterID)
-# pv <- sapply(1:n.cluster, function(x) get.pval(x, df = df6, ps = ps))
-# sig.idx <- which(pv < 0.05)
-# ncl <- 2
-# min.units <- 3
-# while(length(sig.idx) > 0){
-#   are.units.ok <- sapply(1:ncl, function(x) 
-#     table(df6[df6$clusterID == x, ]$highest_degree))
-#   are.units.ok1 <- sapply(1:ncl, function(x) all(are.units.ok[, x] > min.units))
-#   if(sum(are.units.ok1) != ncl) {
-#     df6$clusterID <- kmeans(ps, ncl-1)$cluster
-#     print(paste("We fitted", ncl-1, "clusters"))
-#     break
-#   }
-#   ncl <- ncl + 1
-#   df6$clusterID <- kmeans(ps, ncl)$cluster
-#   pv <- sapply(sig.idx, function(x) get.pval(x, df = df6, ps = ps))
-#   sig.idx <- which(pv < 0.05)
-# }
-# Run kmeans and update subclasses identification
-run_kmeans <- function(df, clusterID, ncl){
-  idx <- df$clusterID == clusterID
-  idx_next <- df$clusterID > clusterID
-  if (sum(idx_next) > 0) 
-    df[idx_next, ]$clusterID <- df[idx_next, ]$clusterID + ncl - 1
-  a <- (clusterID - 1)
-  df[idx, ]$clusterID <- a+kmeans(df[idx, tail(colnames(df), 4)], ncl)$cluster
-  return(df)
-}
+# Subclassify #
 set.seed(24)
 df8 <- df5
 df8$clusterID <- kmeans(ps, 2)$cluster
 n.cluster <- max(df8$clusterID)
 pv <- sapply(1:n.cluster, function(x) get.pval(x, df = df8, ps = ps))
+min.units <- 10
 are.units.ok <- sapply(1:n.cluster , function(x) 
   table(df8[df8$clusterID == x, ]$highest_degree))
-are.units.ok1 <- sapply(1:n.cluster, function(x) any(are.units.ok[, x] > 10))
+are.units.ok1 <- sapply(1:n.cluster, function(x) any(are.units.ok[, x] > min.units))
 sig.idx <- which(pv < 0.01 & are.units.ok1)
 count <- 0
 df9 <- df8
-ncl <- 2 #number of clusters to fit at each iteration
-min.units <- 10 # min # of units in each category
+ncl <- 2 # number of clusters to fit at each iteration
 while(length(sig.idx) > 0 & count < 100){
   offset <- 0
   for(i in sig.idx) {
@@ -227,79 +167,60 @@ df9k$clusterID <- kmeans(ps, 7)$cluster
 # VISUALIZE THE BALANCE #
 #########################
 # get hisograms for propensity scores based on class
-library(ggplot2)
-library(gridExtra)
-library(grid)
-library(reshape2)
-# Example with ncl=4 clusters
 ncl <- max(df9$clusterID) # clusters
 bw <- 0.1 # binwidth
-alpha <- 0.5 
-# df5$clusterID <- kmeans(ps, ncl)$cluster
-df10 <- df9[, c("highest_degree", "no_high_school", "high_school", "bachelor", 
-                "post_graduate", "clusterID")]
-df10$clusterID <- as.factor(df10$clusterID)
-df10 <- melt(df10, id = c("clusterID", "highest_degree"))
-var <- "bachelor"
-for(i in 1:(ncl-1)){
-  assign(paste0("p", i), ggplot(aes(x = value, fill = highest_degree), 
-                                data = df10[df10$clusterID==i & 
-                                              df10$variable == var, ]) + 
-           geom_density(aes(y = ..density..), alpha = alpha, 
-                        binwidth = bw) +
-           ggtitle(paste("Cluster", i)))
-}
-p.last <- ggplot(aes(x = value, fill = highest_degree), 
-                 data = df10[df10$clusterID==ncl & 
-                               df10$variable == var, ]) + 
-  geom_density(aes(y = ..density..), alpha = alpha,
-               binwidth = bw) +  
-  
-  theme(legend.direction = "horizontal") + 
-  ggtitle(paste("Cluster", ncl))
-g_legend<-function(a.gplot){
-  tmp <- ggplot_gtable(ggplot_build(a.gplot))
-  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
-  legend <- tmp$grobs[[leg]]
-  return(legend)
-}
-grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"), 
-                         p2 + theme(legend.position = "none"),
-                         p3 + theme(legend.position = "none"),
-                         p4 + theme(legend.position = "none"), 
-                         p5 + theme(legend.position = "none"), 
-                         p.last + theme(legend.position = "none"), nrow = 3),
-             g_legend(p.last), nrow = 2, heights = c(10, 1),
-             top=textGrob(paste("PS for Treatment:", var),
-                          gp=gpar(fontsize=20,font=3)))
+alpha <- 0.5
 # COVARIANCE BALANCE ON RAW DATA #
 df12 <- df9[, c(covars, "highest_degree")]
 pdf(paste("./balance_covariates.pdf"))
 for(k in 1:(length(covars) - 1)){
-  dat <- df12[df12$highest_degree=="high_school", c(covars[k], "highest_degree")]
+  dat <- df12[, c(covars[k], "highest_degree")]
   names(dat) <- c("var", "highest_degree")
-  assign(paste0("p", k), ggplot(aes(x = var, fill = highest_degree), 
-                                data = dat) + 
-           geom_histogram(alpha = alpha, 
-                          binwidth = bw) + 
-           labs(x = covars[k], y = "Frequency"))
+  df.new <- ddply(dat, .(highest_degree), summarise,
+                  prop = as.numeric(prop.table(table(var))),
+                  var = names(table(var)))
+  # Decide number of rows for legend
+  l.lvls <- length(levels(dat$var))
+  if(l.lvls <= 3) nr.leg <- 1 
+  if(l.lvls > 3 & l.lvls <= 15) nr.leg <- 2
+  if(l.lvls > 15) nr.leg <- 3
+  assign(paste0("p", k), ggplot(df.new, aes(x = highest_degree, y = prop,
+                                            fill = var)) +
+           geom_bar(stat="identity", position='dodge') +
+           theme(axis.text=element_text(size=7)) + 
+           labs(x = "", y = "Density") +
+           theme(legend.direction = "horizontal", legend.key.size = unit(.5, "cm")) +
+           guides(fill=guide_legend(title = "", nrow=nr.leg,byrow=TRUE)) +
+           ggtitle(covars[k]))
 }
 dat <- df12[, c(covars[k+1], "highest_degree")]
 names(dat) <- c("var", "highest_degree")
-p.last <- ggplot(aes(x = var, fill = highest_degree), 
-                 data = dat) + 
-  geom_histogram(alpha = alpha,
-                 binwidth = bw) + 
-  labs(x = covars[k+1], y = "Frequency") + 
-  theme(legend.direction = "horizontal")
-grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"), 
-                         p2 + theme(legend.position = "none"),
-                         p.last + theme(legend.position = "none"), nrow = 3),
-             g_legend(p.last), nrow = 2, heights = c(10, 1),
+df.new <- ddply(dat,.(highest_degree),summarise,
+                prop=as.numeric(prop.table(table(var))),
+                var=names(table(var)))
+l.lvls <- length(levels(dat$var))
+if(l.lvls <= 3) nr.leg <- 1 
+if(l.lvls > 3 & l.lvls <= 15) nr.leg <- 2
+if(l.lvls > 15) nr.leg <- 3
+p.last <-ggplot(df.new, aes(x = highest_degree, y = prop,
+                            fill = var)) +
+  geom_bar(stat="identity", position='dodge') +
+  labs(x = "", y = "Density") + 
+  theme(legend.direction = "horizontal", legend.key.size = unit(.5, "cm")) + 
+  guides(fill=guide_legend(title = "", nrow=nr.leg,byrow=TRUE)) +
+  theme(axis.text=element_text(size=7)) +
+  ggtitle(covars[k+1])
+grid.arrange(p1 + theme(legend.position = "none"), 
+             g_legend(p1), 
+             p2 + theme(legend.position = "none"),
+             g_legend(p2),
+             p.last + theme(legend.position = "none"),
+             g_legend(p.last), nrow = 6, heights = c(6, 1, 6, 1, 6, 3),
              top=textGrob("Pre-subclassification covariates balance",
                           gp=gpar(fontsize=20,font=3)))
 dev.off()
 # Plot covariates by cluster
+library(plyr)
 meth <- "nicole"
 if (meth == "kiran")  df11 <- df9k[, c(covars, "highest_degree", "clusterID")]
 if (meth == "nicole") df11 <- df9[, c(covars, "highest_degree", "clusterID")]
@@ -308,22 +229,30 @@ for(k in covars){
   for(i in 1:(ncl-1)){
     dat <- df11[df11$clusterID==i, c(k, "highest_degree")]
     names(dat) <- c("var", "highest_degree")
-    assign(paste0("p", i), ggplot(aes(x = var, fill = highest_degree), 
-                                  data = dat) + 
-             geom_histogram(alpha = alpha, 
-                            binwidth = bw) +
+    df.new <- ddply(dat, .(highest_degree), summarise,
+                  prop = as.numeric(prop.table(table(var))),
+                  var = names(table(var)))
+    # Decide number of rows for legend
+    if(length(levels(dat$var)) == 3) nr.leg <- 1 else nr.leg <- 3
+    assign(paste0("p", i), ggplot(df.new, aes(x = highest_degree, y = prop,
+                                             fill = var)) +
+             geom_bar(stat="identity", position='dodge') +
              theme(axis.text=element_text(size=7)) + 
-             labs(x = k, y = "Frequency") + 
+             labs(x = "", y = "Density") + 
              ggtitle(paste("Cluster", i)))
   }
   dat <- df11[df11$clusterID==ncl, c(k, "highest_degree")]
   names(dat) <- c("var", "highest_degree")
-  p.last <- ggplot(aes(x = var, fill = highest_degree), 
-                   data = dat) + 
-    geom_histogram(alpha = alpha,
-                   binwidth = bw) + 
-    labs(x = k, y = "Frequency") + 
-    theme(legend.direction = "horizontal") + 
+  df.new <- ddply(dat,.(highest_degree),summarise,
+                  prop=as.numeric(prop.table(table(var))),
+                  var=names(table(var)))
+  p.last <-ggplot(df.new, aes(x = highest_degree, y = prop,
+                              fill = var)) +
+    geom_bar(stat="identity", position='dodge') +
+    labs(x = "", y = "Density") + 
+    theme(legend.direction = "horizontal", legend.key.size = unit(.3, "cm")) + 
+    guides(fill=guide_legend(nrow=nr.leg,byrow=TRUE)) +
+    theme(axis.text=element_text(size=7)) +
     ggtitle(paste("Cluster", ncl))
   grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"), 
                            p2 + theme(legend.position = "none"),
@@ -331,22 +260,16 @@ for(k in covars){
                            p4 + theme(legend.position = "none"), 
                            p5 + theme(legend.position = "none"),
                            p.last + theme(legend.position = "none"), nrow = 3),
-               g_legend(p.last), nrow = 2, heights = c(10, 1))
+               g_legend(p.last), nrow = 2, heights = c(10, 1),
+               top=textGrob(paste("Distribution of", k, 
+                                  "\n after classification"),
+                            gp=gpar(fontsize=20,font=3)))
   dev.off()
 }
 ##################
 # ANALYSIS PHASE #
 ##################
 # Compute attitude extremity
-extreme_attitude <- function(y) {
-  if(class(y) == "factor") vals <- as.integer(levels(y))
-  else vals <- unique(y)
-  x <- as.integer(y)
-  max <- max(vals, na.rm = TRUE)
-  mid <- quantile(vals[!is.na(vals)], p = 0.5)
-  out <- (x - mid)^2/(max - mid)^2
-  return(out)
-}
 econ.ext <- sapply(economic.questions, function(x) extreme_attitude(df9[, x]))
 soci.ext <- sapply(social.questions, function(x) extreme_attitude(df9[, x]))
 envi.ext <- sapply(environmental.questions, 
