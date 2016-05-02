@@ -3,6 +3,7 @@ library(ggplot2)
 library(gridExtra)
 library(grid)
 library(reshape2)
+library(plyr)
 # Helpers functions #
 years.to.educ <- function(df.raw, years){
   df <- df.raw

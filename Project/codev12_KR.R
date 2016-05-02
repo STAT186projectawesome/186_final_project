@@ -1,6 +1,6 @@
 setwd("C:/Users/Matteo/186_final_project/Project")
 source("./helpers.R")
-df1 = read.csv("./raw_data_t.csv")
+df1 = read.csv("./raw_data_t_added_sex.csv")
 # Some cleaning #
 df1[df1=="Not applicable" | df1 == ""] <- NA
 df1$Age.of.respondent <- as.integer(df1$Age.of.respondent)
@@ -70,7 +70,7 @@ df2 = df2[!is.na(df2$Highest.year.of.school.completed), ]
 #############################
 df3 <- df2
 covars = c("Race.of.respondent", "Rs.religious.preference", 
-           "Hispanic.specified")
+           "Respondents.sex", "Hispanic.specified")
 # build the multinomial regression for propensity scores
 df3$highest_degree = ordered(df3$highest_degree, c("no_high_school","high_school","bachelor","post_graduate"))
 library(VGAM)
@@ -166,15 +166,20 @@ df9k$clusterID <- kmeans(ps, 7)$cluster
 #########################
 # VISUALIZE THE BALANCE #
 #########################
+df9$Rs.religious.preference <- factor(df9$Rs.religious.preference)
+df9$Hispanic.specified <- factor(df9$Hispanic.specified)
 # get hisograms for propensity scores based on class
 ncl <- max(df9$clusterID) # clusters
 bw <- 0.1 # binwidth
 alpha <- 0.5
 # COVARIANCE BALANCE ON RAW DATA #
 df12 <- df9[, c(covars, "highest_degree")]
+colnames(df12) <- c("Race", "Religion", "Sex", "Hispanic_specified",
+                    "highest_degree") 
+covars1 <- c("Race", "Religion", "Sex", "Hispanic_specified")
 pdf(paste("./balance_covariates.pdf"))
-for(k in 1:(length(covars) - 1)){
-  dat <- df12[, c(covars[k], "highest_degree")]
+for(k in 1:(length(covars1) - 1)){
+  dat <- df12[, c(covars1[k], "highest_degree")]
   names(dat) <- c("var", "highest_degree")
   df.new <- ddply(dat, .(highest_degree), summarise,
                   prop = as.numeric(prop.table(table(var))),
@@ -182,50 +187,61 @@ for(k in 1:(length(covars) - 1)){
   # Decide number of rows for legend
   l.lvls <- length(levels(dat$var))
   if(l.lvls <= 3) nr.leg <- 1 
-  if(l.lvls > 3 & l.lvls <= 15) nr.leg <- 2
-  if(l.lvls > 15) nr.leg <- 3
+  if(l.lvls > 3 & l.lvls <= 10) nr.leg <- 2
+  if(l.lvls > 10) nr.leg <- 4
   assign(paste0("p", k), ggplot(df.new, aes(x = highest_degree, y = prop,
                                             fill = var)) +
-           geom_bar(stat="identity", position='dodge') +
-           theme(axis.text=element_text(size=7)) + 
+           geom_bar(stat="identity", position='dodge', width = .5) +
+           theme(axis.text.x=element_text(size=10)) + 
            labs(x = "", y = "Density") +
-           theme(legend.direction = "horizontal", legend.key.size = unit(.5, "cm")) +
+           theme(legend.direction = "horizontal", 
+                 legend.key.size = unit(.5, "cm")) +
            guides(fill=guide_legend(title = "", nrow=nr.leg,byrow=TRUE)) +
-           ggtitle(covars[k]))
+           ggtitle(covars1[k]))
 }
-dat <- df12[, c(covars[k+1], "highest_degree")]
+dat <- df12[, c(covars1[k+1], "highest_degree")]
 names(dat) <- c("var", "highest_degree")
 df.new <- ddply(dat,.(highest_degree),summarise,
                 prop=as.numeric(prop.table(table(var))),
                 var=names(table(var)))
 l.lvls <- length(levels(dat$var))
 if(l.lvls <= 3) nr.leg <- 1 
-if(l.lvls > 3 & l.lvls <= 15) nr.leg <- 2
-if(l.lvls > 15) nr.leg <- 3
+if(l.lvls > 3 & l.lvls <= 10) nr.leg <- 2
+if(l.lvls > 10) nr.leg <- 4
 p.last <-ggplot(df.new, aes(x = highest_degree, y = prop,
                             fill = var)) +
   geom_bar(stat="identity", position='dodge') +
   labs(x = "", y = "Density") + 
   theme(legend.direction = "horizontal", legend.key.size = unit(.5, "cm")) + 
   guides(fill=guide_legend(title = "", nrow=nr.leg,byrow=TRUE)) +
-  theme(axis.text=element_text(size=7)) +
-  ggtitle(covars[k+1])
+  theme(axis.text=element_text(size=10)) +
+  ggtitle(covars1[k+1])
 grid.arrange(p1 + theme(legend.position = "none"), 
              g_legend(p1), 
              p2 + theme(legend.position = "none"),
-             g_legend(p2),
+             g_legend(p2), nrow = 4, 
+             heights = c(6, 1, 6, 3),
+             top=textGrob("Pre-subclassification covariates balance",
+                          gp=gpar(fontsize=20,font=3)))
+dev.off()
+pdf("./balance_covariates2.pdf")
+grid.arrange(p3 + theme(legend.position = "none"), 
+             g_legend(p3), 
              p.last + theme(legend.position = "none"),
-             g_legend(p.last), nrow = 6, heights = c(6, 1, 6, 1, 6, 3),
+             g_legend(p.last), nrow = 4, 
+             heights = c(6, 1, 6, 3),
              top=textGrob("Pre-subclassification covariates balance",
                           gp=gpar(fontsize=20,font=3)))
 dev.off()
 # Plot covariates by cluster
-library(plyr)
 meth <- "nicole"
 if (meth == "kiran")  df11 <- df9k[, c(covars, "highest_degree", "clusterID")]
 if (meth == "nicole") df11 <- df9[, c(covars, "highest_degree", "clusterID")]
-for(k in covars){
-  pdf(paste0("./balance_covariates_", meth, "_", k, ".pdf")) # CHANGE THIS
+colnames(df11) <- c("Race", "Religion", "Sex", "Hispanic_specified",
+                    "highest_degree", "clusterID") 
+covars1 <- c("Race", "Religion", "Sex", "Hispanic_specified")
+for(k in covars1){
+  pdf(paste0("./balance_covariates_", meth, "_", k, ".pdf"))
   for(i in 1:(ncl-1)){
     dat <- df11[df11$clusterID==i, c(k, "highest_degree")]
     names(dat) <- c("var", "highest_degree")
@@ -233,37 +249,48 @@ for(k in covars){
                   prop = as.numeric(prop.table(table(var))),
                   var = names(table(var)))
     # Decide number of rows for legend
-    if(length(levels(dat$var)) == 3) nr.leg <- 1 else nr.leg <- 3
+    l.lvls <- length(levels(dat$var))
+    if(l.lvls <= 3) nr.leg <- 3 
+    if(l.lvls > 3 & l.lvls <= 10) nr.leg <- 4
+    if(l.lvls > 10) nr.leg <- 6
     assign(paste0("p", i), ggplot(df.new, aes(x = highest_degree, y = prop,
                                              fill = var)) +
              geom_bar(stat="identity", position='dodge') +
-             theme(axis.text=element_text(size=7)) + 
+             theme(axis.text=element_text(size=7),
+                   plot.title = element_text(size = 10),
+                   plot.margin = unit(c(.2,.2,.2,.2), units = "lines")) + 
              labs(x = "", y = "Density") + 
-             ggtitle(paste("Cluster", i)))
+             ggtitle(bquote(Class ~ .(i) ~ (italic(.(nrow(dat)) ~ units)))))
   }
   dat <- df11[df11$clusterID==ncl, c(k, "highest_degree")]
   names(dat) <- c("var", "highest_degree")
   df.new <- ddply(dat,.(highest_degree),summarise,
                   prop=as.numeric(prop.table(table(var))),
                   var=names(table(var)))
+  l.lvls <- length(levels(dat$var))
+  if(l.lvls <= 3) nr.leg <- 3 
+  if(l.lvls > 3 & l.lvls <= 10) nr.leg <- 4
+  if(l.lvls > 10) nr.leg <- 6
   p.last <-ggplot(df.new, aes(x = highest_degree, y = prop,
                               fill = var)) +
     geom_bar(stat="identity", position='dodge') +
     labs(x = "", y = "Density") + 
     theme(legend.direction = "horizontal", legend.key.size = unit(.3, "cm")) + 
-    guides(fill=guide_legend(nrow=nr.leg,byrow=TRUE)) +
-    theme(axis.text=element_text(size=7)) +
-    ggtitle(paste("Cluster", ncl))
+    guides(fill=guide_legend(title = "", nrow=nr.leg,byrow=TRUE)) +
+    theme(axis.text=element_text(size=7),
+          plot.title = element_text(size = 10),
+          plot.margin = unit(c(.2,.2,.2,.2), units = "lines")) +
+    ggtitle(bquote(Class ~ .(ncl) ~ (italic(.(nrow(dat)) ~ units))))
   grid.arrange(arrangeGrob(p1 + theme(legend.position = "none"), 
                            p2 + theme(legend.position = "none"),
                            p3 + theme(legend.position = "none"),
                            p4 + theme(legend.position = "none"), 
                            p5 + theme(legend.position = "none"),
-                           p.last + theme(legend.position = "none"), nrow = 3),
-               g_legend(p.last), nrow = 2, heights = c(10, 1),
-               top=textGrob(paste("Distribution of", k, 
-                                  "\n after classification"),
-                            gp=gpar(fontsize=20,font=3)))
+                           p6 + theme(legend.position = "none"),
+                           p.last + theme(legend.position = "none"),
+                           g_legend(p.last), nrow = 4), nrow = 1,
+               top=textGrob(paste("Distribution of", k),
+                            gp=gpar(fontsize=15,font=3)))
   dev.off()
 }
 ##################

@@ -1,5 +1,5 @@
-maindata = read.csv('raw_data_readable_numerical.csv', na.strings="")
-
+# maindata = read.csv('raw_data_readable_numerical.csv', na.strings="")
+maindata = read.csv('raw_data_added_sex.csv', na.strings="")
 summary(maindata$Should.govt.reduce.income.differences)
 
 maindata$Should.govt.reduce.income.differences <- as.character(maindata$Should.govt.reduce.income.differences)
@@ -331,4 +331,4 @@ maindata$Nuke.power.danger.to.envir[maindata$Nuke.power.danger.to.envir=="Not ap
 maindata$Nuke.power.danger.to.envir<-as.factor(maindata$Nuke.power.danger.to.envir)
 summary(maindata$Nuke.power.danger.to.envir)
 
-write.csv(maindata, 'raw_data_t.csv')
+write.csv(maindata, 'raw_data_t_added_sex.csv')
